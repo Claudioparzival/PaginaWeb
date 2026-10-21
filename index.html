@@ -1,0 +1,408 @@
+<title>Ruleta Europea</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Limelight&family=Figtree:wght@400;600;700&family=DM+Mono:wght@500&display=swap">
+<style>
+/* Layout: rueda arriba y mesa de paño abajo, como en el salón; en escritorio quedan lado a lado */
+:root {
+  --felt: #0d4a36;
+  --felt-dark: #083427;
+  --wood: #2a1710;
+  --brass: #d8b25a;
+  --ink: #f4efe2;
+  --dim: #a9bdb2;
+  --red: #c4202e;
+  --black: #15151a;
+  --f-display: "Limelight", "Didot", Georgia, serif;
+  --f-body: "Figtree", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "DM Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: radial-gradient(130% 80% at 50% 0%, #135a43, var(--felt-dark) 75%);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 14px;
+  min-height: 100%;
+}
+.wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid;
+  gap: 20px;
+}
+header { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; }
+h1 { font-family: var(--f-display); font-weight: 400; font-size: clamp(30px, 5vw, 48px); margin: 0; color: var(--brass); line-height: 1; letter-spacing: 0.02em; }
+.sub { margin: 4px 0 0; color: var(--dim); font-size: 13px; }
+.bank { text-align: right; font-variant-numeric: tabular-nums; }
+.bank .label { font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); }
+.bank b { display: block; font-family: var(--f-mono); font-size: 28px; color: var(--ink); }
+
+.stage { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 860px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+
+.wheel-box { display: grid; gap: 12px; justify-items: center; }
+canvas { width: 100%; max-width: 380px; aspect-ratio: 1; display: block; }
+.result {
+  min-height: 52px; text-align: center; display: grid; gap: 2px; place-items: center;
+}
+.result .num { font-family: var(--f-display); font-size: 26px; }
+.result .msg { color: var(--dim); font-size: 13.5px; }
+.result .msg.win { color: var(--brass); font-weight: 600; }
+.history { display: flex; gap: 5px; flex-wrap: wrap; justify-content: center; min-height: 26px; }
+.history span {
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  font-family: var(--f-mono); font-size: 11px; border: 1px solid rgba(255,255,255,0.25);
+}
+
+.table-scroll { overflow-x: auto; padding-bottom: 6px; }
+.table {
+  display: grid;
+  grid-template-columns: 52px repeat(12, minmax(40px, 1fr)) 52px;
+  grid-template-rows: repeat(3, 50px) 40px 40px;
+  min-width: 640px;
+  border: 2px solid var(--brass);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--felt);
+}
+.cell {
+  position: relative;
+  border: 1px solid rgba(216,178,90,0.55);
+  background: transparent;
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  display: grid; place-items: center;
+  padding: 0;
+  border-radius: 0;
+}
+.cell:hover { background: rgba(255,255,255,0.07); }
+.cell:focus-visible { outline: 2px solid var(--brass); outline-offset: -3px; z-index: 2; }
+.cell .disc { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 13.5px; }
+.cell.r .disc { background: var(--red); }
+.cell.b .disc { background: var(--black); }
+.cell.zero { grid-row: 1 / span 3; grid-column: 1; }
+.cell.zero .disc { background: #1d8a5a; }
+.cell.small { font-size: 12.5px; font-weight: 600; letter-spacing: 0.04em; }
+.cell.win { box-shadow: inset 0 0 0 3px var(--brass); background: rgba(216,178,90,0.18); }
+.diamond { width: 18px; height: 18px; transform: rotate(45deg); border-radius: 2px; }
+
+.chip {
+  position: absolute; top: 3px; right: 3px;
+  min-width: 24px; height: 24px; padding: 0 4px; border-radius: 12px;
+  display: grid; place-items: center;
+  font-family: var(--f-mono); font-size: 10px; color: #111;
+  border: 2px dashed rgba(255,255,255,0.85);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+.chips { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.chips .label { font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--dim); margin-right: 4px; }
+.chipbtn {
+  width: 46px; height: 46px; border-radius: 50%;
+  border: 3px dashed rgba(255,255,255,0.9);
+  font-family: var(--f-mono); font-size: 12px; color: #111; font-weight: 500;
+  cursor: pointer; box-shadow: 0 3px 6px rgba(0,0,0,0.4);
+  transition: transform .15s;
+}
+.chipbtn[aria-pressed="true"] { transform: translateY(-5px); box-shadow: 0 0 0 3px var(--brass), 0 6px 10px rgba(0,0,0,0.5); }
+.chipbtn:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn {
+  font-family: var(--f-body); font-weight: 600; font-size: 14px;
+  padding: 10px 16px; border-radius: 6px; cursor: pointer;
+  background: transparent; color: var(--ink); border: 1px solid rgba(244,239,226,0.35);
+}
+.btn:hover:not(:disabled) { border-color: var(--ink); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+.btn.spin { background: var(--brass); color: #1b1206; border-color: var(--brass); padding-inline: 26px; font-size: 15px; }
+.btn.spin:hover:not(:disabled) { background: #ecc978; }
+.btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.bet-total { font-family: var(--f-mono); color: var(--dim); font-variant-numeric: tabular-nums; }
+.bet-total b { color: var(--ink); }
+
+.payouts { color: var(--dim); font-size: 12.5px; line-height: 1.6; margin: 0; }
+.payouts b { color: var(--ink); font-weight: 600; font-family: var(--f-mono); }
+@media (prefers-reduced-motion: reduce) { .chipbtn { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Ruleta Europea</h1>
+      <p class="sub">Un solo cero, 37 casillas. Se juega con fichas de práctica, sin dinero real.</p>
+    </div>
+    <div class="bank"><span class="label">Tus fichas</span><b id="bank">1,000</b></div>
+  </header>
+
+  <div class="stage">
+    <div class="wheel-box">
+      <canvas id="wheel" width="760" height="760" aria-label="Rueda de la ruleta"></canvas>
+      <div class="result" aria-live="polite">
+        <span class="num" id="resNum">Hagan sus apuestas</span>
+        <span class="msg" id="resMsg">Elige una ficha y toca la mesa</span>
+      </div>
+      <div class="history" id="history" aria-label="Últimos números"></div>
+    </div>
+
+    <div style="display:grid;gap:16px;min-width:0">
+      <div class="table-scroll">
+        <div class="table" id="table"></div>
+      </div>
+
+      <div class="controls">
+        <div class="chips" id="chips"><span class="label">Ficha</span></div>
+        <span class="bet-total">Apuesta: <b id="betTotal">0</b></span>
+      </div>
+      <div class="actions">
+        <button class="btn spin" id="spin" disabled>Girar</button>
+        <button class="btn" id="undo" disabled>Deshacer ficha</button>
+        <button class="btn" id="clear" disabled>Quitar todo</button>
+        <button class="btn" id="repeat" disabled>Repetir apuesta</button>
+        <button class="btn" id="reset" hidden>Recargar 1,000 fichas</button>
+      </div>
+      <p class="payouts">Pagos: número pleno <b>35 a 1</b> · docena o columna <b>2 a 1</b> · rojo/negro, par/impar, 1–18/19–36 <b>1 a 1</b>. Si sale el 0, las apuestas exteriores se pierden. La ventaja de la casa en ruleta europea es de <b>2.7 %</b>.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const ORDER = [0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
+  const REDS = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+  const colorOf = n => n === 0 ? 'g' : REDS.has(n) ? 'r' : 'b';
+  const COL = { r: '#c4202e', b: '#15151a', g: '#1d8a5a' };
+  const CHIPS = [{ v: 5, c: '#f1ece0' }, { v: 25, c: '#5fb36b' }, { v: 100, c: '#6aa7e8' }, { v: 500, c: '#c98be0' }];
+  const fmt = n => n.toLocaleString('es-MX');
+  const $ = id => document.getElementById(id);
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- Estado ----------
+  let bank = 1000;
+  try { const s = parseInt(localStorage.getItem('ruleta-bank'), 10); if (!isNaN(s)) bank = s; } catch (e) {}
+  let chip = 25, bets = {}, stack = [], lastBets = null, spinning = false, history = [];
+  const save = () => { try { localStorage.setItem('ruleta-bank', bank); } catch (e) {} };
+
+  // ---------- Apuestas ----------
+  const BETS = {
+    red:   { pay: 1, hit: n => colorOf(n) === 'r' },
+    black: { pay: 1, hit: n => colorOf(n) === 'b' },
+    even:  { pay: 1, hit: n => n !== 0 && n % 2 === 0 },
+    odd:   { pay: 1, hit: n => n % 2 === 1 },
+    low:   { pay: 1, hit: n => n >= 1 && n <= 18 },
+    high:  { pay: 1, hit: n => n >= 19 },
+    d1: { pay: 2, hit: n => n >= 1 && n <= 12 },
+    d2: { pay: 2, hit: n => n >= 13 && n <= 24 },
+    d3: { pay: 2, hit: n => n >= 25 },
+    c1: { pay: 2, hit: n => n !== 0 && n % 3 === 1 },
+    c2: { pay: 2, hit: n => n !== 0 && n % 3 === 2 },
+    c3: { pay: 2, hit: n => n !== 0 && n % 3 === 0 },
+  };
+  for (let n = 0; n <= 36; n++) BETS['n' + n] = { pay: 35, hit: x => x === n };
+
+  // ---------- Mesa ----------
+  const table = $('table');
+  const cells = {};
+  function cell(key, html, cls, area, label) {
+    const b = document.createElement('button');
+    b.className = 'cell ' + (cls || '');
+    b.innerHTML = html;
+    b.style.gridArea = area;
+    b.setAttribute('aria-label', label);
+    b.onclick = () => place(key);
+    table.appendChild(b);
+    cells[key] = b;
+  }
+  cell('n0', '<span class="disc">0</span>', 'zero', '1 / 1 / 4 / 2', 'Cero');
+  for (let col = 0; col < 12; col++) {
+    for (let row = 0; row < 3; row++) {
+      const n = col * 3 + (3 - row);
+      cell('n' + n, `<span class="disc">${n}</span>`, colorOf(n), `${row + 1} / ${col + 2} / ${row + 2} / ${col + 3}`, `Número ${n}`);
+    }
+  }
+  cell('c3', '2 a 1', 'small', '1 / 14 / 2 / 15', 'Columna superior');
+  cell('c2', '2 a 1', 'small', '2 / 14 / 3 / 15', 'Columna media');
+  cell('c1', '2 a 1', 'small', '3 / 14 / 4 / 15', 'Columna inferior');
+  cell('d1', '1ª docena', 'small', '4 / 2 / 5 / 6', 'Primera docena, 1 a 12');
+  cell('d2', '2ª docena', 'small', '4 / 6 / 5 / 10', 'Segunda docena, 13 a 24');
+  cell('d3', '3ª docena', 'small', '4 / 10 / 5 / 14', 'Tercera docena, 25 a 36');
+  cell('low', '1–18', 'small', '5 / 2 / 6 / 4', 'Falta, 1 a 18');
+  cell('even', 'Par', 'small', '5 / 4 / 6 / 6', 'Par');
+  cell('red', `<span class="diamond" style="background:${COL.r}"></span>`, '', '5 / 6 / 6 / 8', 'Rojo');
+  cell('black', `<span class="diamond" style="background:${COL.b};border:1px solid #555"></span>`, '', '5 / 8 / 6 / 10', 'Negro');
+  cell('odd', 'Impar', 'small', '5 / 10 / 6 / 12', 'Impar');
+  cell('high', '19–36', 'small', '5 / 12 / 6 / 14', 'Pasa, 19 a 36');
+
+  // ---------- Fichas ----------
+  const chipsEl = $('chips');
+  CHIPS.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'chipbtn'; b.textContent = c.v; b.style.background = c.c;
+    b.setAttribute('aria-label', `Ficha de ${c.v}`);
+    b.onclick = () => { chip = c.v; refreshChips(); };
+    b.dataset.v = c.v;
+    chipsEl.appendChild(b);
+  });
+  const refreshChips = () => chipsEl.querySelectorAll('.chipbtn').forEach(b => b.setAttribute('aria-pressed', +b.dataset.v === chip));
+  const chipColor = amt => (CHIPS.slice().reverse().find(c => amt >= c.v) || CHIPS[0]).c;
+
+  const totalBet = () => Object.values(bets).reduce((a, b) => a + b, 0);
+
+  function place(key) {
+    if (spinning) return;
+    clearWins();
+    if (chip > bank) { msg(`No te alcanza para una ficha de ${chip}`, false); return; }
+    bank -= chip;
+    bets[key] = (bets[key] || 0) + chip;
+    stack.push([key, chip]);
+    render();
+  }
+
+  function render() {
+    $('bank').textContent = fmt(bank);
+    $('betTotal').textContent = fmt(totalBet());
+    Object.entries(cells).forEach(([k, el]) => {
+      let c = el.querySelector('.chip');
+      if (bets[k]) {
+        if (!c) { c = document.createElement('span'); c.className = 'chip'; el.appendChild(c); }
+        c.textContent = bets[k] >= 1000 ? (bets[k] / 1000).toFixed(1) + 'k' : bets[k];
+        c.style.background = chipColor(bets[k]);
+      } else if (c) c.remove();
+    });
+    const has = totalBet() > 0;
+    $('spin').disabled = spinning || !has;
+    $('undo').disabled = spinning || !stack.length;
+    $('clear').disabled = spinning || !has;
+    const lastCost = lastBets ? Object.values(lastBets).reduce((a, b) => a + b, 0) : 0;
+    $('repeat').disabled = spinning || has || !lastBets || lastCost > bank;
+    $('reset').hidden = !(bank < CHIPS[0].v && !has && !spinning);
+    refreshChips();
+  }
+
+  $('undo').onclick = () => { const s = stack.pop(); if (!s) return; bets[s[0]] -= s[1]; if (!bets[s[0]]) delete bets[s[0]]; bank += s[1]; render(); };
+  $('clear').onclick = () => { bank += totalBet(); bets = {}; stack = []; render(); };
+  $('repeat').onclick = () => { clearWins(); Object.entries(lastBets).forEach(([k, v]) => { bets[k] = v; bank -= v; stack.push([k, v]); }); render(); };
+  $('reset').onclick = () => { bank = 1000; save(); msg('Tienes 1,000 fichas nuevas', false); render(); };
+
+  function msg(text, win) { const m = $('resMsg'); m.textContent = text; m.className = 'msg' + (win ? ' win' : ''); }
+  function clearWins() { Object.values(cells).forEach(c => c.classList.remove('win')); }
+
+  // ---------- Rueda ----------
+  const cv = $('wheel'), ctx = cv.getContext('2d');
+  const S = cv.width, C = S / 2, R = S * 0.48, SEG = Math.PI * 2 / 37;
+  let wheelA = 0, ballA = -Math.PI / 2, ballR = R * 0.86, ballVisible = false;
+
+  function draw() {
+    ctx.clearRect(0, 0, S, S);
+    // borde de madera
+    ctx.beginPath(); ctx.arc(C, C, R, 0, Math.PI * 2);
+    const wood = ctx.createRadialGradient(C, C, R * 0.8, C, C, R);
+    wood.addColorStop(0, '#4a2a1a'); wood.addColorStop(1, '#1e0f08');
+    ctx.fillStyle = wood; ctx.fill();
+    // pista de la bola
+    ctx.beginPath(); ctx.arc(C, C, R * 0.9, 0, Math.PI * 2); ctx.fillStyle = '#3b2216'; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = '#d8b25a'; ctx.stroke();
+
+    // casillas
+    for (let i = 0; i < 37; i++) {
+      const a0 = wheelA + i * SEG - SEG / 2 - Math.PI / 2, a1 = a0 + SEG;
+      ctx.beginPath(); ctx.moveTo(C, C); ctx.arc(C, C, R * 0.8, a0, a1); ctx.closePath();
+      ctx.fillStyle = COL[colorOf(ORDER[i])]; ctx.fill();
+      ctx.strokeStyle = '#d8b25a'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.save();
+      ctx.translate(C, C); ctx.rotate(a0 + SEG / 2 + Math.PI / 2);
+      ctx.fillStyle = '#f4efe2'; ctx.font = `600 ${S * 0.03}px Figtree, system-ui, sans-serif`;
+      ctx.textAlign = 'center'; ctx.fillText(ORDER[i], 0, -R * 0.72);
+      ctx.restore();
+    }
+    // anillo de bolsillos
+    ctx.beginPath(); ctx.arc(C, C, R * 0.64, 0, Math.PI * 2); ctx.fillStyle = '#2a1710'; ctx.fill();
+    ctx.strokeStyle = '#d8b25a'; ctx.lineWidth = 2; ctx.stroke();
+    // cono central
+    const cone = ctx.createRadialGradient(C - R * 0.1, C - R * 0.1, 0, C, C, R * 0.5);
+    cone.addColorStop(0, '#7a4a2c'); cone.addColorStop(1, '#2a1710');
+    ctx.beginPath(); ctx.arc(C, C, R * 0.5, 0, Math.PI * 2); ctx.fillStyle = cone; ctx.fill();
+    // torreta de latón
+    ctx.save(); ctx.translate(C, C); ctx.rotate(wheelA);
+    ctx.strokeStyle = '#e8c56e'; ctx.lineWidth = S * 0.012; ctx.lineCap = 'round';
+    for (let k = 0; k < 4; k++) { ctx.rotate(Math.PI / 2); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -R * 0.3); ctx.stroke(); ctx.beginPath(); ctx.arc(0, -R * 0.3, S * 0.014, 0, Math.PI * 2); ctx.fillStyle = '#e8c56e'; ctx.fill(); }
+    ctx.restore();
+    ctx.beginPath(); ctx.arc(C, C, S * 0.03, 0, Math.PI * 2); ctx.fillStyle = '#f1d68a'; ctx.fill();
+
+    // marcador superior
+    ctx.beginPath(); ctx.moveTo(C - 12, C - R - 2); ctx.lineTo(C + 12, C - R - 2); ctx.lineTo(C, C - R * 0.9); ctx.closePath();
+    ctx.fillStyle = '#d8b25a'; ctx.fill();
+
+    // bola
+    if (ballVisible) {
+      const bx = C + Math.cos(ballA) * ballR, by = C + Math.sin(ballA) * ballR;
+      const g = ctx.createRadialGradient(bx - 4, by - 4, 1, bx, by, S * 0.018);
+      g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#b9b9b9');
+      ctx.beginPath(); ctx.arc(bx, by, S * 0.017, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+    }
+  }
+  draw();
+
+  const ease = t => 1 - Math.pow(1 - t, 3.2);
+
+  $('spin').onclick = () => {
+    if (spinning || !totalBet()) return;
+    spinning = true; clearWins(); render();
+    $('resNum').textContent = 'No va más';
+    msg('La bola está girando…', false);
+
+    const idx = Math.floor(Math.random() * 37);
+    const result = ORDER[idx];
+    const W0 = wheelA, B0 = ballA;
+    const W1 = W0 - (Math.PI * 2 * 3 + Math.random() * Math.PI * 2);
+    // la bola termina en el centro de la casilla ganadora (casilla i centrada en wheelA + i*SEG - π/2)
+    let B1 = W1 + idx * SEG - Math.PI / 2;
+    while (B1 < B0 + Math.PI * 2 * 6) B1 += Math.PI * 2;
+    const dur = reduce ? 600 : 5200, t0 = performance.now();
+    ballVisible = true;
+
+    (function tick(now) {
+      const t = Math.min(1, (now - t0) / dur), e = ease(t);
+      wheelA = W0 + (W1 - W0) * e;
+      ballA = B0 + (B1 - B0) * e;
+      const drop = Math.min(1, Math.max(0, (t - 0.6) / 0.35));
+      ballR = R * (0.86 - drop * 0.15) + (drop > 0 && drop < 1 ? Math.sin(drop * Math.PI * 5) * R * 0.012 * (1 - drop) : 0);
+      draw();
+      if (t < 1) requestAnimationFrame(tick); else settle(result);
+    })(t0);
+  };
+
+  function settle(n) {
+    let won = 0;
+    Object.entries(bets).forEach(([k, amt]) => { if (BETS[k].hit(n)) won += amt * (BETS[k].pay + 1); });
+    const staked = totalBet();
+    bank += won;
+    lastBets = { ...bets }; bets = {}; stack = [];
+    spinning = false;
+    const cname = { r: 'rojo', b: 'negro', g: 'verde' }[colorOf(n)];
+    $('resNum').textContent = `${n} ${cname}`;
+    $('resNum').style.color = n === 0 ? '#5fd39a' : colorOf(n) === 'r' ? '#ff6b75' : '#f4efe2';
+    if (won > 0) msg(`Ganaste ${fmt(won)} fichas (apostaste ${fmt(staked)})`, true);
+    else msg(`Perdiste ${fmt(staked)} fichas`, false);
+    Object.keys(BETS).forEach(k => { if (BETS[k].hit(n) && cells[k]) cells[k].classList.add('win'); });
+    history.unshift(n); history = history.slice(0, 12);
+    const h = $('history'); h.innerHTML = '';
+    history.forEach(x => { const s = document.createElement('span'); s.textContent = x; s.style.background = COL[colorOf(x)]; h.appendChild(s); });
+    save(); render();
+  }
+
+  // Apuesta de ejemplo para que la mesa no empiece vacía
+  if (bank >= 50) { bets = { n17: 25, red: 25 }; stack = [['n17', 25], ['red', 25]]; bank -= 50; msg('Ya hay una apuesta de ejemplo: 17 pleno y rojo', false); }
+  render();
+})();
+</script>
